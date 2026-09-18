@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    >
+    <title>Chatten</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <main class="chat-shell">
+
+        <header class="chat-header">
+            <h1>CHATTEN</h1>
+
+            <nav id="rooms" class="rooms" aria-label="Chatrum">
+                <button
+                    class="room-button active"
+                    data-room-id="lobby"
+                    type="button"
+                >
+                    #lobbyn<span class="room-count">(0)</span>
+                </button>
+
+                <button
+                    class="room-button"
+                    data-room-id="baren"
+                    type="button"
+                >
+                    #baren<span class="room-count">(0)</span>
+                </button>
+
+                <button
+                    class="room-button"
+                    data-room-id="loungen"
+                    type="button"
+                >
+                    #loungen<span class="room-count">(0)</span>
+                </button>
+
+                <button
+                    class="room-button"
+                    data-room-id="balkongen"
+                    type="button"
+                >
+                    #balkongen<span class="room-count">(0)</span>
+                </button>
+            </nav>
+            <button
+                id="sound-toggle"
+                class="sound-toggle"
+                type="button"
+                aria-label="Ljud av"
+                title="Ljud av"
+            >
+                <svg
+                    class="sound-icon"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                >
+                    <path d="M4 9v6h4l5 4V5L8 9H4z"></path>
+                    <path class="sound-wave" d="M16 8.5a5 5 0 0 1 0 7"></path>
+                    <path class="sound-wave" d="M19 6a8.5 8.5 0 0 1 0 12"></path>
+                </svg>
+            </button>
+        </header>
+
+        <div class="chat-content">
+            <section id="messages" class="messages"></section>
+
+            <aside id="online-users" class="online-users">
+                <div class="online-header">ANVÄNDARE</div>
+                <div id="online-user-list" class="online-user-list"></div>
+            </aside>
+        </div>
+
+        <form id="message-form" class="message-form">
+            <input
+                id="message-input"
+                type="text"
+                placeholder="Skriv ett meddelande"
+                autocomplete="off"
+                maxlength="2000"
+            >
+
+            <button type="submit" aria-label="Skicka">
+                <img src="/static/images/send-msg.svg" alt="">
+            </button>
+        </form>
+
+    </main>
+
+    <script src="/static/chat.js"></script>
+</body>
+</html>
