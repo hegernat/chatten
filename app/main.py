@@ -79,6 +79,7 @@ class ConnectionManager:
     def __init__(self):
         self.connections: dict[WebSocket, dict] = {}
         self.sessions: dict[str, dict] = {}
+        self.ignored_users = {}
 
     def next_visitor_number(self) -> int:
         number = 1
@@ -94,6 +95,25 @@ class ConnectionManager:
             number += 1
 
         return number
+
+    def set_ignored_user(self, session_id: str, target_session_id: str, ignored: bool):
+        ignored_set = self.ignored_users.setdefault(session_id, set())
+
+        if ignored:
+            ignored_set.add(target_session_id)
+        else:
+            ignored_set.discard(target_session_id)
+
+
+    def is_ignored(self, session_id: str, target_session_id: str) -> bool:
+        return target_session_id in self.ignored_users.get(session_id, set())
+
+
+    def is_blocked_between(self, session_a: str, session_b: str) -> bool:
+        return (
+            self.is_ignored(session_a, session_b)
+            or self.is_ignored(session_b, session_a)
+        )
 
     # -----------------------------------------------------------------------
     # Sessions
@@ -246,12 +266,12 @@ class ConnectionManager:
         return True
 
     def change_username(self, session, new_username) -> tuple[bool, str]:
-        new_username = new_username.strip()
-            
+        new_username = " ".join(new_username.split())
+
         if not 2 <= len(new_username) <= 20:
             return False, "Namnet måste vara mellan 2 och 20 tecken."
 
-        if not re.fullmatch(r"[A-Za-zÅÄÖåäö0-9_-]+", new_username):
+        if not re.fullmatch(r"[A-Za-zÅÄÖåäö0-9_ -]+", new_username):
             return False, "Namnet får bara innehålla bokstäver, siffror, _ och -."
 
         normalized = new_username.casefold()
@@ -299,6 +319,7 @@ class ConnectionManager:
             "connection_id": connection_id,
             "session_id": session["session_id"],
             "room_id": DEFAULT_ROOM,
+            "opened_rooms": {DEFAULT_ROOM},
             "username": session["username"],
             "color": session["color"],
             "last_room_change": 0.0,
@@ -431,6 +452,7 @@ class ConnectionManager:
 
         # Move this connection silently.
         connection["room_id"] = new_room_id
+        connection["opened_rooms"].add(new_room_id)
 
         # Update affected room counts.
         await self.send_room_user_count(old_room_id)
@@ -443,23 +465,6 @@ class ConnectionManager:
                 "room_id": new_room_id,
             }
         )
-
-        history = await get_recent_messages(new_room_id)
-
-        for message in history:
-            await websocket.send_json(
-                {
-                    "type": "message",
-                    "id": message["id"],
-                    "session_id": message["session_id"],
-                    "room_id": message["room_id"],
-                    "text": message["text"],
-                    "timestamp": message["created_at"],
-                    "reply_to_id": message["reply_to_id"],
-                    "username": message["username"],
-                    "color": message["color"],
-                }
-            )
 
     # -----------------------------------------------------------------------
     # Session leave
@@ -492,6 +497,11 @@ class ConnectionManager:
             await self.broadcast_online_users()
 
             self.sessions.pop(session["session_id"], None)
+
+            self.ignored_users.pop(session["session_id"], None)
+
+            for ignored_set in self.ignored_users.values():
+                ignored_set.discard(session["session_id"])
 
         except asyncio.CancelledError:
             pass
@@ -610,23 +620,6 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.send_online_users(websocket)
     await manager.broadcast_online_users()
 
-    history = await get_recent_messages(room_id)
-
-    for message in history:
-        await websocket.send_json(
-            {
-                "type": "message",
-                "id": message["id"],
-                "session_id": message["session_id"],
-                "room_id": message["room_id"],
-                "text": message["text"],
-                "timestamp": message["created_at"],
-                "reply_to_id": message["reply_to_id"],
-                "username": message["username"],
-                "color": message["color"],
-            }
-        )
-
     # -----------------------------------------------------------------------
     # Receive messages
     # -----------------------------------------------------------------------
@@ -676,6 +669,33 @@ async def websocket_endpoint(websocket: WebSocket):
                 )
 
                 await manager.broadcast_online_users()
+
+                continue
+            # ---------------------------------------------------------------
+            # Ignore / unignore user
+            # ---------------------------------------------------------------
+
+            if message_type == "ignore_user":
+                target_session_id = data.get("session_id")
+                ignored = data.get("ignored")
+
+                if not isinstance(target_session_id, str):
+                    continue
+
+                if not isinstance(ignored, bool):
+                    continue
+
+                if target_session_id == session["session_id"]:
+                    continue
+
+                if target_session_id not in manager.sessions:
+                    continue
+
+                manager.set_ignored_user(
+                    session["session_id"],
+                    target_session_id,
+                    ignored,
+                )
 
                 continue
 
@@ -734,20 +754,40 @@ async def websocket_endpoint(websocket: WebSocket):
                     created_at=created_at,
                 )
 
-                await manager.broadcast(
-                    {
-                        "type": "message",
-                        "id": message_id,
-                        "connection_id": connection_id,
-                        "session_id": session["session_id"],
-                        "username": session["username"],
-                        "color": session["color"],
-                        "room_id": room_id,
-                        "text": text,
-                        "timestamp": created_at,
-                    },
-                    room_id=room_id,
-                )
+                message_data = {
+                    "type": "message",
+                    "id": message_id,
+                    "connection_id": connection_id,
+                    "session_id": session["session_id"],
+                    "username": session["username"],
+                    "color": session["color"],
+                    "room_id": room_id,
+                    "text": text,
+                    "timestamp": created_at,
+                }
+
+                dead_connections = []
+
+                for target_websocket, target_connection in list(manager.connections.items()):
+                    if room_id not in target_connection["opened_rooms"]:
+                        continue
+
+                    target_session_id = target_connection["session_id"]
+
+                    if target_session_id != session["session_id"]:
+                        if manager.is_blocked_between(
+                            session["session_id"],
+                            target_session_id,
+                        ):
+                            continue
+
+                    try:
+                        await target_websocket.send_json(message_data)
+                    except Exception:
+                        dead_connections.append(target_websocket)
+
+                for dead_websocket in dead_connections:
+                    manager.disconnect(dead_websocket)
 
             # ---------------------------------------------------------------
             # Change room

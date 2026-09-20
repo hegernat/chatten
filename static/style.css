@@ -31,11 +31,25 @@ body {
 }
 
 body {
-    background: var(--background);
+    margin: 0;
+    min-height: 100vh;
+
+    background-image:
+        linear-gradient(
+            rgba(20, 20, 20, 0.85),
+            rgba(20, 20, 20, 0.85)
+        ),
+        url("/static/images/wallpaper01.jpg");
+
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+
+    background-color: #202124;
     color: var(--text);
     font-family: "Agave Nerd Font", monospace;
 }
-
 
 /* -------------------------------------------------------------------------
    Chat shell
@@ -283,6 +297,59 @@ body {
 /* -------------------------------------------------------------------------
    Online users
    ------------------------------------------------------------------------- */
+.online-user {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.online-user-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.online-user-name:hover {
+    text-decoration: underline;
+}
+
+.ignore-button {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms ease-out;
+}
+
+.online-user:hover .ignore-button,
+.online-user.ignored .ignore-button {
+    opacity: 0.55;
+}
+
+.ignore-button:hover {
+    opacity: 1 !important;
+}
+
+.ignore-icon {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+.online-user.ignored .ignore-button {
+    opacity: 0.8;
+}
+
+.online-user.ignored .online-user-name {
+    text-decoration: line-through;
+    opacity: 0.55;
+}
 
 .online-users {
     width: 180px;
@@ -462,21 +529,12 @@ body {
 .sound-icon {
     width: 18px;
     height: 18px;
-
-    fill: currentColor;
-    stroke: currentColor;
-    stroke-width: 1.5;
-
-    overflow: visible;
+    display: block;
+    opacity: 0.8;
 }
 
-.sound-wave {
-    fill: none;
-    stroke-linecap: round;
-}
-
-.sound-toggle.enabled {
-    color: var(--text);
+.sound-toggle:hover .sound-icon {
+    opacity: 1;
 }
 
 /* -------------------------------------------------------------------------

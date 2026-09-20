@@ -14,7 +14,6 @@
     <main class="chat-shell">
 
         <header class="chat-header">
-            <h1>CHATTEN</h1>
 
             <nav id="rooms" class="rooms" aria-label="Chatrum">
                 <button
@@ -53,18 +52,14 @@
                 id="sound-toggle"
                 class="sound-toggle"
                 type="button"
-                aria-label="Ljud av"
-                title="Ljud av"
+                aria-label="Ljud på"
+                title="Ljud på"
             >
-                <svg
-                    class="sound-icon"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
+                <img
+                    id="sound-icon"
+                    src="/static/images/notification-sound.svg"
+                    alt=""
                 >
-                    <path d="M4 9v6h4l5 4V5L8 9H4z"></path>
-                    <path class="sound-wave" d="M16 8.5a5 5 0 0 1 0 7"></path>
-                    <path class="sound-wave" d="M19 6a8.5 8.5 0 0 1 0 12"></path>
-                </svg>
             </button>
         </header>
 

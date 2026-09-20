@@ -7,13 +7,15 @@ const onlineUserList = document.getElementById("online-user-list");
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 const websocket = new WebSocket(`${protocol}//${window.location.host}/ws`);
 const soundToggle = document.getElementById("sound-toggle");
+const soundIcon = document.getElementById("sound-icon");
+
 const messageSound = new Audio("/static/sounds/msg02.mp3");
 const mentionSound = new Audio("/static/sounds/mention01.mp3");
 
 messageSound.volume = 0.25;
 mentionSound.volume = 0.25;
 
-let soundEnabled = localStorage.getItem("chatten_sound") === "true";
+let soundEnabled = localStorage.getItem("chatten_sound") !== "false";
 
 let currentRoom = localStorage.getItem("chatten_room") || "lobby";
 let pendingRoom = null;
@@ -23,7 +25,58 @@ let currentSessionId = null;
 let currentUsername = null;
 let currentUserColor = null;
 
-function addMessage(data) {
+const IGNORED_USERS_KEY = "chatten_ignored_users";
+
+let ignoredUsers = new Set(
+    JSON.parse(localStorage.getItem(IGNORED_USERS_KEY) || "[]")
+);
+
+function saveIgnoredUsers() {
+    localStorage.setItem(
+        IGNORED_USERS_KEY,
+        JSON.stringify([...ignoredUsers])
+    );
+}
+
+function isUserIgnored(sessionId) {
+    return ignoredUsers.has(sessionId);
+}
+
+function toggleIgnoredUser(sessionId) {
+    const ignored = !ignoredUsers.has(sessionId);
+
+    if (ignored) {
+        ignoredUsers.add(sessionId);
+    } else {
+        ignoredUsers.delete(sessionId);
+    }
+
+    saveIgnoredUsers();
+
+    websocket.send(JSON.stringify({
+        type: "ignore_user",
+        session_id: sessionId,
+        ignored: ignored,
+    }));
+
+    renderCurrentRoom();
+}
+
+const roomMessageHistory = new Map();
+
+function getRoomMessageHistory(roomId) {
+    if (!roomMessageHistory.has(roomId)) {
+        roomMessageHistory.set(roomId, []);
+    }
+
+    return roomMessageHistory.get(roomId);
+}
+
+function renderMessage(data) {
+    if (isUserIgnored(data.session_id)) {
+        return;
+    }
+
     const message = document.createElement("div");
     message.className = "message";
 
@@ -75,9 +128,37 @@ function addMessage(data) {
     message.appendChild(text);
 
     messages.appendChild(message);
+}
+
+
+function addMessage(data) {
+    const history = getRoomMessageHistory(data.room_id);
+
+    history.push(data);
+
+    if (history.length > 500) {
+        history.shift();
+    }
+
+    if (data.room_id !== currentRoom) {
+        return;
+    }
+
+    renderMessage(data);
     messages.scrollTop = messages.scrollHeight;
 }
 
+function renderCurrentRoom() {
+    messages.innerHTML = "";
+
+    const history = getRoomMessageHistory(currentRoom);
+
+    history.forEach((message) => {
+        renderMessage(message);
+    });
+
+    messages.scrollTop = messages.scrollHeight;
+}
 
 function addSystemMessage(data) {
     const message = document.createElement("div");
@@ -136,15 +217,69 @@ function updateOnlineUsers(users) {
         userElement.dataset.sessionId = user.session_id;
         userElement.style.color = user.color;
 
-        userElement.textContent = user.username;
+        const name = document.createElement("span");
+        name.className = "online-user-name";
+        name.textContent = user.username;
 
         if (user.session_id === currentSessionId) {
             userElement.classList.add("self");
-            userElement.textContent += " •";
+            name.textContent += " •";
 
-            userElement.addEventListener("click", function () {
+            name.addEventListener("click", function () {
                 openUsernameEditor(userElement, user);
             });
+
+            userElement.appendChild(name);
+        } else {
+            name.addEventListener("click", function () {
+                input.focus();
+
+                const mention = `@${user.username} `;
+
+                if (!input.value.includes(mention)) {
+                    input.value += mention;
+                }
+
+                input.focus();
+            });
+
+            const ignoreButton = document.createElement("button");
+            ignoreButton.type = "button";
+            ignoreButton.className = "ignore-button";
+
+            const ignored = isUserIgnored(user.session_id);
+
+            const ignoreIcon = document.createElement("img");
+            ignoreIcon.src = "/static/images/block.svg";
+            ignoreIcon.alt = "";
+            ignoreIcon.className = "ignore-icon";
+
+            ignoreButton.appendChild(ignoreIcon);
+
+            ignoreButton.title = ignored
+                ? "Sluta ignorera"
+                : "Ignorera användare";
+
+            if (ignored) {
+                userElement.classList.add("ignored");
+            }
+
+            ignoreButton.addEventListener("click", function (event) {
+                event.stopPropagation();
+
+                toggleIgnoredUser(user.session_id);
+
+                const nowIgnored = isUserIgnored(user.session_id);
+
+                ignoreButton.title = nowIgnored
+                    ? "Sluta ignorera"
+                    : "Ignorera användare";
+
+                userElement.classList.toggle("ignored", nowIgnored);
+            });
+
+            userElement.appendChild(name);
+            userElement.appendChild(ignoreButton);
         }
 
         onlineUserList.appendChild(userElement);
@@ -245,16 +380,18 @@ function changeRoom(roomId) {
 }
 
 function updateSoundToggle() {
-    soundToggle.classList.toggle("enabled", soundEnabled);
+    soundIcon.src = soundEnabled
+        ? "/static/images/notification-sound.svg"
+        : "/static/images/notification-sound-off.svg";
 
     soundToggle.setAttribute(
         "aria-label",
-        soundEnabled ? "Ljud på" : "Ljud av"
+        soundEnabled ? "Ljud av" : "Ljud på"
     );
 
     soundToggle.setAttribute(
         "title",
-        soundEnabled ? "Ljud på" : "Ljud av"
+        soundEnabled ? "Ljud av" : "Ljud på"
     );
 }
 
@@ -330,7 +467,7 @@ websocket.onmessage = function (event) {
 
             roomChangeInProgress = false;
 
-            messages.innerHTML = "";
+            renderCurrentRoom();
             input.focus();
             break;
 
@@ -345,6 +482,21 @@ websocket.onmessage = function (event) {
             break;
 
         case "username_changed":
+            if (data.session_id === currentSessionId) {
+                currentUsername = data.username;
+                currentUserColor = data.color;
+            }
+
+            for (const history of roomMessageHistory.values()) {
+                for (const message of history) {
+                    if (message.session_id === data.session_id) {
+                        message.username = data.username;
+                        message.color = data.color;
+                    }
+                }
+            }
+
+            renderCurrentRoom();
             break;
 
         case "username_change_failed":
