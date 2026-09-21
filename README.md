@@ -11,7 +11,7 @@ The project is currently under active development.
 ## Features
 
 - Public chat rooms
-- Persistent room history using SQLite
+- SQLite message logging
 - Anonymous visitor names such as `Besökare1`, `Besökare2`, etc.
 - Custom usernames
 - Username colors
@@ -22,12 +22,17 @@ The project is currently under active development.
 - `@mention` highlighting
 - Optional background notification sounds
 - Separate notification sound for mentions
+- Persistent notification sound preference
 - Online user list
 - Room user counts
-- Persistent room selection across page refreshes
-- Basic message rate limiting
-- Duplicate-message protection
+- In-session room history for rooms opened during the current session
+- Opened rooms continue receiving live messages while browsing another room
+- Per-user ignore/block functionality
+- Persistent ignored-user state using `localStorage`
+- Live username updates without requiring a page refresh
+- Main application menu
 - Responsive desktop and mobile interface
+- Mobile user list overlay
 - Dark, minimal terminal-inspired UI
 - Agave Nerd Font
 - Docker-based deployment
@@ -118,11 +123,13 @@ Changes to files mounted directly from the host, such as files under `static/` a
 
 ## Data
 
-Chat messages are stored in a local SQLite database mounted at:
+Chat messages are logged to a local SQLite database mounted at:
 
 ```text
 /data/batadas.db
 ```
+
+The chat UI does not load persistent SQLite history on page load. Room history is kept in client memory for rooms opened during the current session.
 
 The local `data/` directory is excluded from Git so runtime data is not published to the repository.
 
@@ -136,6 +143,7 @@ Current protections include:
 - Duplicate-message detection
 - Reserved usernames
 - Basic username validation
+- Per-user ignore/block functionality
 
 Planned or under consideration:
 
