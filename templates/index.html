@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     >
     <title>Chatten</title>
     <link rel="stylesheet" href="/static/style.css">
@@ -48,6 +48,7 @@
                     #balkongen<span class="room-count">(0)</span>
                 </button>
             </nav>
+
             <button
                 id="sound-toggle"
                 class="sound-toggle"
@@ -61,25 +62,124 @@
                     alt=""
                 >
             </button>
+
+            <button
+                id="menu-toggle"
+                class="menu-toggle"
+                type="button"
+                aria-label="Öppna meny"
+                aria-expanded="false"
+            >
+                <span aria-hidden="true">☰</span>
+            </button>
+
         </header>
+
+        <div id="menu-overlay" class="menu-overlay" hidden></div>
+
+        <aside
+            id="menu-drawer"
+            class="menu-drawer"
+            aria-label="Meny"
+            aria-hidden="true"
+        >
+            <div class="menu-header">
+                <span>MENY</span>
+
+                <button
+                    id="menu-close"
+                    class="menu-close"
+                    type="button"
+                    aria-label="Stäng meny"
+                >
+                    ×
+                </button>
+            </div>
+
+            <nav class="menu-nav" aria-label="Huvudmeny">
+
+                <button
+                    class="menu-item"
+                    type="button"
+                    data-menu-action="profile"
+                >
+                    Profil
+                </button>
+
+                <button
+                    class="menu-item"
+                    type="button"
+                    data-menu-action="settings"
+                >
+                    Inställningar
+                </button>
+
+                <button
+                    class="menu-item"
+                    type="button"
+                    data-menu-action="help"
+                >
+                    Hjälp
+                </button>
+
+                <button
+                    class="menu-item"
+                    type="button"
+                    data-menu-action="privacy"
+                >
+                    Integritet
+                </button>
+
+                <button
+                    class="menu-item"
+                    type="button"
+                    data-menu-action="terms"
+                >
+                    Villkor
+                </button>
+
+            </nav>
+        </aside>
 
         <div class="chat-content">
             <section id="messages" class="messages"></section>
 
+            <button
+                id="userlist-toggle"
+                class="userlist-toggle"
+                type="button"
+                aria-label="Dölj användarlista"
+                aria-expanded="true"
+            >
+                −
+            </button>
+
             <aside id="online-users" class="online-users">
-                <div class="online-header">ANVÄNDARE</div>
-                <div id="online-user-list" class="online-user-list"></div>
+                <div class="online-header">
+                    <span>ANVÄNDARE</span>
+                </div>
+
+                <div
+                    id="online-user-list"
+                    class="online-user-list"
+                ></div>
             </aside>
         </div>
 
         <form id="message-form" class="message-form">
-            <input
-                id="message-input"
-                type="text"
-                placeholder="Skriv ett meddelande"
-                autocomplete="off"
-                maxlength="2000"
-            >
+            <div class="message-input-wrap">
+                <textarea
+                    id="message-input"
+                    placeholder="Skriv ett meddelande"
+                    autocomplete="off"
+                    maxlength="4000"
+                    rows="1"
+                ></textarea>
+
+                <span id="message-counter" class="message-counter">
+                    0/4000
+                </span>
+            </div>
 
             <button type="submit" aria-label="Skicka">
                 <img src="/static/images/send-msg.svg" alt="">

@@ -1,8 +1,87 @@
 const messages = document.getElementById("messages");
 const form = document.getElementById("message-form");
 const input = document.getElementById("message-input");
+const messageCounter = document.getElementById("message-counter");
+
+function updateMessageCounter() {
+    messageCounter.textContent = `${input.value.length}/4000`;
+}
+
+input.addEventListener("input", updateMessageCounter);
+updateMessageCounter();
+
+input.addEventListener("keydown", function (event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        form.requestSubmit();
+    }
+});
+
 const roomButtons = document.querySelectorAll(".room-button");
 const onlineUserList = document.getElementById("online-user-list");
+const menuToggle = document.getElementById("menu-toggle");
+const menuClose = document.getElementById("menu-close");
+const menuOverlay = document.getElementById("menu-overlay");
+const menuDrawer = document.getElementById("menu-drawer");
+const userlistToggle = document.getElementById("userlist-toggle");
+const onlineUsersPanel = document.getElementById("online-users");
+const chatContent = document.querySelector(".chat-content");
+
+function openMenu() {
+    menuOverlay.hidden = false;
+    menuDrawer.classList.add("open");
+
+    menuToggle.setAttribute("aria-expanded", "true");
+    menuDrawer.setAttribute("aria-hidden", "false");
+}
+
+function closeMenu() {
+    menuDrawer.classList.remove("open");
+
+    menuToggle.setAttribute("aria-expanded", "false");
+    menuDrawer.setAttribute("aria-hidden", "true");
+
+    setTimeout(() => {
+        if (!menuDrawer.classList.contains("open")) {
+            menuOverlay.hidden = true;
+        }
+    }, 160);
+}
+
+function toggleUserlist() {
+    const hidden = onlineUsersPanel.classList.toggle("collapsed");
+
+    userlistToggle.textContent = hidden ? "+" : "−";
+    userlistToggle.setAttribute(
+        "aria-expanded",
+        String(!hidden)
+    );
+    userlistToggle.setAttribute(
+        "aria-label",
+        hidden
+            ? "Visa användarlista"
+            : "Dölj användarlista"
+    );
+}
+
+userlistToggle.addEventListener("click", toggleUserlist);
+
+menuToggle.addEventListener("click", function () {
+    if (menuDrawer.classList.contains("open")) {
+        closeMenu();
+    } else {
+        openMenu();
+    }
+});
+
+menuClose.addEventListener("click", closeMenu);
+menuOverlay.addEventListener("click", closeMenu);
+
+document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && menuDrawer.classList.contains("open")) {
+        closeMenu();
+    }
+});
 
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 const websocket = new WebSocket(`${protocol}//${window.location.host}/ws`);
@@ -182,19 +261,14 @@ function updateRoomCount(roomId, count) {
         `.room-button[data-room-id="${roomId}"]`
     );
 
-    if (!button) {
-        return;
+    if (button) {
+        const countElement = button.querySelector(".room-count");
+
+        if (countElement) {
+            countElement.textContent = count > 0 ? `(${count})` : "";
+        }
     }
-
-    const countElement = button.querySelector(".room-count");
-
-    if (!countElement) {
-        return;
-    }
-
-    countElement.textContent = count > 0 ? `(${count})` : "";
 }
-
 
 function setActiveRoom(roomId) {
     currentRoom = roomId;
@@ -285,7 +359,7 @@ function updateOnlineUsers(users) {
         onlineUserList.appendChild(userElement);
     });
 }
-
+ 
 function openUsernameEditor(userElement, user) {
     if (userElement.querySelector(".username-edit")) {
         return;
@@ -294,12 +368,19 @@ function openUsernameEditor(userElement, user) {
     userElement.innerHTML = "";
     userElement.classList.add("editing");
 
-    const input = document.createElement("input");
+    const input = document.createElement("div");
     input.className = "username-edit";
-    input.type = "text";
-    input.maxLength = 20;
-    input.value = user.username;
-    input.autocomplete = "off";
+    input.contentEditable = "true";
+    input.setAttribute("role", "textbox");
+    input.setAttribute("aria-label", "Användarnamn");
+    input.spellcheck = false;
+    input.textContent = user.username;
+
+    input.addEventListener("input", function () {
+        if (input.textContent.length > 20) {
+            input.textContent = input.textContent.slice(0, 20);
+        }
+    });
 
     const saveButton = document.createElement("button");
     saveButton.type = "button";
@@ -310,10 +391,15 @@ function openUsernameEditor(userElement, user) {
     userElement.appendChild(saveButton);
 
     input.focus();
-    input.select();
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(input);
+    selection.removeAllRanges();
+    selection.addRange(range);
 
     function saveUsername() {
-        const username = input.value.trim();
+        const username = input.textContent.trim();
 
         if (!username) {
             return;
@@ -532,6 +618,7 @@ form.addEventListener("submit", function (event) {
     );
 
     input.value = "";
+    updateMessageCounter();
     input.focus();
 });
 

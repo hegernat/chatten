@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.1.0] - 2026-09-21
+
+### Added
+- Main application menu with entries for profile, settings, help, privacy, and terms.
+- Responsive user list toggle for desktop and mobile.
+- Mobile user list displayed as an overlay without obscuring message content.
+- Message character counter.
+- Multi-line message input with Shift+Enter support.
+- Preserved line breaks in sent messages.
+
+### Changed
+- Increased maximum message length from 2,000 to 4,000 characters.
+- Public chat rooms are now displayed as button-style controls.
+- Active chat room is visually distinguished from inactive rooms.
+- Improved mobile layout for the user list.
+- Prevented vertical scrolling in the room navigation.
+- Improved long-message wrapping and readability.
+
+
 ## [1.0.1] - 2026-09-20
 
 ### Added
