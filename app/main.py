@@ -1,19 +1,31 @@
 import asyncio
+import aiosqlite
 import time
 import uuid
 import re
-from datetime import datetime, timezone
-
+from datetime import datetime, timezone, timedelta
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from app.database import init_db, save_message, get_recent_messages
+from argon2 import PasswordHasher
+from app.database import (
+    init_db,
+    save_message,
+    get_recent_messages,
+    create_account,
+    create_session,
+    get_session,
+    login_name_exists,
+    alias_exists,
+    delete_session,
+)
 
 app = FastAPI(title="Chatten")
 
 @app.on_event("startup")
 async def startup():
     await init_db()
+    asyncio.create_task(idle_watcher())
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -22,15 +34,12 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Configuration
 # ---------------------------------------------------------------------------
 
-USERNAME_COLORS = [
-    "#8fd694",  # green
-    "#e6a0c8",  # pink
-    "#8fb9e8",  # blue
-    "#b9a0e6",  # purple
-    "#e3cf7a",  # yellow
-]
+USERNAME_COLOR = "#8fd694"
+ACCOUNT_COLOR = "#7fc4c8"
 
 DISCONNECT_GRACE_PERIOD = 300
+IDLE_TIMEOUT = 300
+password_hasher = PasswordHasher()
 ROOM_CHANGE_COOLDOWN = 0.25
 MAX_MESSAGE_LENGTH = 4000
 
@@ -70,6 +79,284 @@ def timestamp():
 def next_message_id():
     return str(uuid.uuid4())
 
+def validate_login_name(login_name: str) -> tuple[bool, str]:
+    if not 4 <= len(login_name) <= 20:
+        return False, "Login-ID måste vara mellan 4 och 20 tecken."
+
+    if not re.fullmatch(r"[a-z0-9_-]+", login_name):
+        return False, "Login-ID får bara innehålla a-z, 0-9, _ och -."
+
+    return True, ""
+
+
+def validate_alias(alias: str) -> tuple[bool, str]:
+    alias = " ".join(alias.split())
+
+    if not 2 <= len(alias) <= 20:
+        return False, "Alias måste vara mellan 2 och 20 tecken."
+
+    if not re.fullmatch(r"[A-Za-zÅÄÖåäöÆØæø0-9_ -]+", alias):
+        return False, "Alias får bara innehålla bokstäver, siffror, _ och -."
+
+    normalized = alias.casefold()
+    reserved_check = normalized.replace("_", "").replace("-", "")
+
+    if reserved_check in RESERVED_USERNAMES:
+        return False, "Aliaset är reserverat."
+
+    if normalized in RESERVED_USERNAMES:
+        return False, "Aliaset är reserverat."
+
+    return True, ""
+
+
+def validate_password(password: str) -> tuple[bool, str]:
+    if not 8 <= len(password) <= 128:
+        return False, "Lösenordet måste vara mellan 8 och 128 tecken."
+
+    return True, ""
+
+async def register_account(
+    login_name: str,
+    alias: str,
+    password: str,
+):
+    login_name = login_name.lower()
+    alias = " ".join(alias.split())
+
+    valid, error = validate_login_name(login_name)
+    if not valid:
+        return False, error
+
+    valid, error = validate_alias(alias)
+    if not valid:
+        return False, error
+
+    valid, error = validate_password(password)
+    if not valid:
+        return False, error
+
+    if await login_name_exists(login_name):
+        return False, "Login-ID är upptaget."
+
+    if await alias_exists(alias):
+        return False, "Aliaset är upptaget."
+
+    password_hash = password_hasher.hash(password)
+
+    account_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    try:
+        await create_account(
+            account_id=account_id,
+            login_name=login_name,
+            alias=alias,
+            password_hash=password_hash,
+            created_at=created_at,
+        )
+    except aiosqlite.IntegrityError:
+        return False, "Login-ID eller alias är upptaget."
+
+    return True, account_id
+
+async def authenticate_account(login_name: str, password: str):
+    login_name = login_name.lower()
+
+    async with aiosqlite.connect("/data/batadas.db") as db:
+        db.row_factory = aiosqlite.Row
+
+        cursor = await db.execute(
+            """
+            SELECT id, login_name, alias, password_hash, role,
+                   username_font, username_color
+            FROM accounts
+            WHERE login_name = ?
+            """,
+            (login_name,),
+        )
+
+        account = await cursor.fetchone()
+
+    if account is None:
+        return None
+
+    try:
+        password_hasher.verify(account["password_hash"], password)
+    except Exception:
+        return None
+
+    return dict(account)
+
+SESSION_DURATION = timedelta(days=30)
+
+
+async def create_account_session(account_id: str):
+    session_id = uuid.uuid4().hex
+    created_at = datetime.now(timezone.utc)
+    expires_at = created_at + SESSION_DURATION
+
+    await create_session(
+        session_id=session_id,
+        account_id=account_id,
+        created_at=created_at.isoformat(),
+        expires_at=expires_at.isoformat(),
+    )
+
+    return session_id
+
+@app.post("/api/register")
+async def register(request: Request):
+    data = await request.json()
+
+    login_name = data.get("login_name", "")
+    alias = data.get("alias", "")
+    password = data.get("password", "")
+    password_confirm = data.get("password_confirm", "")
+
+    if password != password_confirm:
+        return {
+            "ok": False,
+            "error": "Lösenorden matchar inte."
+        }
+
+    ok, result = await register_account(
+        login_name=login_name,
+        alias=alias,
+        password=password,
+    )
+
+    if not ok:
+        return {
+            "ok": False,
+            "error": result
+        }
+
+    return {
+        "ok": True,
+        "account_id": result
+    }
+
+@app.post("/api/check-login-name")
+async def check_login_name(request: Request):
+    data = await request.json()
+    login_name = data.get("login_name", "").lower()
+
+    valid, error = validate_login_name(login_name)
+
+    if not valid:
+        return {
+            "ok": False,
+            "available": False,
+            "error": error,
+        }
+
+    if await login_name_exists(login_name):
+        return {
+            "ok": True,
+            "available": False,
+        }
+
+    return {
+        "ok": True,
+        "available": True,
+    }
+
+
+@app.post("/api/check-alias")
+async def check_alias(request: Request):
+    data = await request.json()
+    alias = " ".join(data.get("alias", "").split())
+
+    valid, error = validate_alias(alias)
+
+    if not valid:
+        return {
+            "ok": False,
+            "available": False,
+            "error": error,
+        }
+
+    if await alias_exists(alias):
+        return {
+            "ok": True,
+            "available": False,
+        }
+
+    return {
+        "ok": True,
+        "available": True,
+    }
+
+@app.post("/api/login")
+async def login(request: Request):
+    data = await request.json()
+
+    login_name = data.get("login_name", "")
+    password = data.get("password", "")
+
+    account = await authenticate_account(
+        login_name=login_name,
+        password=password,
+    )
+
+    if account is None:
+        return {
+            "ok": False,
+            "error": "Felaktigt Login-ID eller lösenord."
+        }
+
+    session_id = await create_account_session(account["id"])
+
+    response = {
+        "ok": True,
+        "account": {
+            "id": account["id"],
+            "login_name": account["login_name"],
+            "alias": account["alias"],
+            "role": account["role"],
+            "username_font": account["username_font"],
+            "username_color": account["username_color"],
+        }
+    }
+
+    from fastapi.responses import JSONResponse
+
+    result = JSONResponse(content=response)
+
+    result.set_cookie(
+        key="chatten_session",
+        value=session_id,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=30 * 24 * 60 * 60,
+    )
+
+    return result
+
+@app.post("/api/logout")
+async def logout(request: Request):
+    session_id = request.cookies.get("chatten_session")
+
+    if session_id:
+        account_session = await get_session(session_id)
+
+        if account_session:
+            manager.logout_account(account_session["account_id"])
+
+        await delete_session(session_id)
+
+    response = JSONResponse(content={"ok": True})
+
+    response.delete_cookie(
+        key="chatten_session",
+        httponly=True,
+        secure=False,
+        samesite="lax",
+    )
+
+    return response
 
 # ---------------------------------------------------------------------------
 # Connection manager
@@ -119,11 +406,34 @@ class ConnectionManager:
     # Sessions
     # -----------------------------------------------------------------------
 
+    def find_session_by_account(self, account_id: str):
+        for session in self.sessions.values():
+            if session.get("account_id") == account_id:
+                return session
+
+        return None
+
+    def logout_account(self, account_id: str):
+        session = self.find_session_by_account(account_id)
+
+        if not session:
+            return
+
+        session["account_id"] = None
+        session["username"] = f"Besökare{self.next_visitor_number()}"
+        session["color"] = USERNAME_COLOR
+
+        for connection in self.connections.values():
+            if connection["session_id"] == session["session_id"]:
+                connection["username"] = session["username"]
+                connection["color"] = session["color"]    
+
     def get_or_create_session(
         self,
         session_id: str | None,
         client_ip: str | None = None,
         user_agent: str | None = None,
+        account: dict | None = None,
     ):
         if session_id and session_id in self.sessions:
             session = self.sessions[session_id]
@@ -138,19 +448,20 @@ class ConnectionManager:
 
             return session
 
-        session_id = str(uuid.uuid4())
+        session_id = session_id or str(uuid.uuid4())
         now = timestamp()
 
         session = {
             "session_id": session_id,
-            "username": f"Besökare{self.next_visitor_number()}",
-            "color": USERNAME_COLORS[
-                len(self.sessions) % len(USERNAME_COLORS)
-            ],
+            "username": account["alias"] if account else f"Besökare{self.next_visitor_number()}",
+            "color": account["username_color"] if account else USERNAME_COLOR,
+            "account_id": account["id"] if account else None,
             "ip": client_ip,
             "user_agent": user_agent,
             "created_at": now,
             "last_seen": now,
+            "last_activity": time.monotonic(),
+            "idle": False,
             "message_tokens": MESSAGE_RATE_CAPACITY,
             "message_token_time": time.monotonic(),
             "last_message_text": None,
@@ -183,6 +494,25 @@ class ConnectionManager:
         leave_task = session.get("leave_task")
 
         if leave_task and not leave_task.done():
+            return True
+
+        return False
+
+    def mark_activity(self, session: dict) -> bool:
+        session["last_activity"] = time.monotonic()
+
+        if session["idle"]:
+            session["idle"] = False
+            return True
+
+        return False
+
+    def update_idle_status(self, session: dict) -> bool:
+        if session["idle"]:
+            return False
+
+        if time.monotonic() - session["last_activity"] >= IDLE_TIMEOUT:
+            session["idle"] = True
             return True
 
         return False
@@ -240,9 +570,13 @@ class ConnectionManager:
                     "session_id": session_id,
                     "username": connection["username"],
                     "color": connection["color"],
+                    "idle": self.sessions[session_id]["idle"],
                 }
 
-        return list(users.values())
+        users_list = list(users.values())
+        users_list.sort(key=lambda user: user["username"].casefold())
+
+        return users_list
 
     def consume_message_token(self, session: dict) -> bool:
         now = time.monotonic()
@@ -266,6 +600,9 @@ class ConnectionManager:
         return True
 
     def change_username(self, session, new_username) -> tuple[bool, str]:
+        if session.get("account_id"):
+            return False, "Alias för registrerade konton ändras via Profil."
+
         new_username = " ".join(new_username.split())
 
         if not 2 <= len(new_username) <= 20:
@@ -278,10 +615,10 @@ class ConnectionManager:
         reserved_check = normalized.replace("_", "").replace("-", "")
 
         if reserved_check in RESERVED_USERNAMES:
-            return False, "Det användarnamnet är reserverat."
+            return False, "Aliaset är reserverat."
 
         if normalized in RESERVED_USERNAMES:
-            return False, "Det användarnamnet är reserverat."
+            return False, "Aliaset är reserverat."
 
         for other_session in self.sessions.values():
             if other_session["session_id"] == session["session_id"]:
@@ -291,7 +628,7 @@ class ConnectionManager:
                 continue
 
             if other_session["username"].casefold() == normalized:
-                return False, "Det användarnamnet används redan."
+                return False, "Aliaset används redan."
 
         session["username"] = new_username
         session["last_seen"] = timestamp()
@@ -517,6 +854,18 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+async def idle_watcher():
+    while True:
+        await asyncio.sleep(10)
+
+        for session in manager.sessions.values():
+            if not manager.session_is_connected(session["session_id"]):
+                continue
+
+            changed = manager.update_idle_status(session)
+
+            if changed:
+                await manager.broadcast_online_users()
 
 # ---------------------------------------------------------------------------
 # HTTP routes
@@ -529,17 +878,6 @@ async def health():
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    session_id = request.cookies.get("chatten_session")
-
-    client_ip = request.client.host if request.client else None
-    user_agent = request.headers.get("user-agent")
-
-    session = manager.get_or_create_session(
-        session_id,
-        client_ip=client_ip,
-        user_agent=user_agent,
-    )
-
     with open(
         "templates/index.html",
         "r",
@@ -549,16 +887,17 @@ async def index(request: Request):
 
     response = HTMLResponse(content=content)
 
-    if session_id != session["session_id"]:
+    if not request.cookies.get("chatten_visitor"):
         response.set_cookie(
-            key="chatten_session",
-            value=session["session_id"],
+            key="chatten_visitor",
+            value=uuid.uuid4().hex,
             httponly=True,
+            secure=False,
             samesite="lax",
+            max_age=365 * 24 * 60 * 60,
         )
 
     return response
-
 
 # -----------------------------------------------------------------------
 # WebSocket
@@ -566,16 +905,40 @@ async def index(request: Request):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    session_id = websocket.cookies.get("chatten_session")
+    auth_session_id = websocket.cookies.get("chatten_session")
+    visitor_session_id = websocket.cookies.get("chatten_visitor")
 
     client_ip = websocket.client.host if websocket.client else None
     user_agent = websocket.headers.get("user-agent")
 
-    session = manager.get_or_create_session(
-        session_id,
-        client_ip=client_ip,
-        user_agent=user_agent,
-    )
+    account = None
+
+    if auth_session_id:
+        account = await get_session(auth_session_id)
+
+    if account:
+        session = manager.find_session_by_account(account["id"])
+
+        if session:
+            session["last_seen"] = timestamp()
+            if client_ip:
+                session["ip"] = client_ip
+            if user_agent:
+                session["user_agent"] = user_agent
+        else:
+            session = manager.get_or_create_session(
+                None,
+                client_ip=client_ip,
+                user_agent=user_agent,
+                account=account,
+            )
+    else:
+        session = manager.get_or_create_session(
+            visitor_session_id,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            account=None,
+        )
 
     # A session with an active connection OR a pending leave task
     # is considered already present.
@@ -614,6 +977,7 @@ async def websocket_endpoint(websocket: WebSocket):
             "session_id": session["session_id"],
             "username": session["username"],
             "color": session["color"],
+            "authenticated": session["account_id"] is not None,
         }
     )
 
@@ -631,6 +995,18 @@ async def websocket_endpoint(websocket: WebSocket):
             session["last_seen"] = timestamp()
 
             message_type = data.get("type")
+
+            # ---------------------------------------------------------------
+            # User activity
+            # ---------------------------------------------------------------
+
+            if message_type == "activity":
+                changed = manager.mark_activity(session)
+
+                if changed:
+                    await manager.broadcast_online_users()
+
+                continue
 
             # ---------------------------------------------------------------
             # Change username

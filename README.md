@@ -10,31 +10,57 @@ The project is currently under active development.
 
 ## Features
 
+### Chat
+
 - Public chat rooms
+- WebSocket-based live messaging
 - SQLite message logging
 - Anonymous visitor names such as `Besökare1`, `Besökare2`, etc.
-- Custom usernames
-- Username colors
-- Reserved username protection
-- Basic username character restrictions
-- WebSocket-based live messaging
+- Registered user accounts with public aliases
+- Custom username colors for registered users
+- Reserved username and alias protection
+- Basic username and alias validation
 - Message timestamps
 - `@mention` highlighting
 - Optional background notification sounds
 - Separate notification sound for mentions
 - Persistent notification sound preference
 - Online user list
+- Alphabetically ordered global online user list
 - Room user counts
 - In-session room history for rooms opened during the current session
 - Opened rooms continue receiving live messages while browsing another room
 - Per-user ignore/block functionality
 - Persistent ignored-user state using `localStorage`
-- Live username updates without requiring a page refresh
+
+### Accounts and authentication
+
+- Account registration with Login-ID, alias and password
+- Argon2 password hashing
+- Login and logout
+- Persistent authenticated sessions
+- 30-day authenticated session duration
+- HTTP-only authentication cookies
+- Account roles for users, moderators and administrators
+- Account-specific username colors
+- Username font settings
+- Server-side authentication and authorization groundwork
+- Password confirmation during registration
+- Password visibility controls
+- No email-based password recovery
+
+### Interface
+
 - Main application menu
+- Profile and authentication controls
 - Responsive desktop and mobile interface
-- Mobile user list overlay
+- Responsive mobile user list overlay
+- Live username updates without requiring a page refresh
 - Dark, minimal terminal-inspired UI
 - Agave Nerd Font
+- Multi-line message input
+- `Shift+Enter` support for line breaks
+- Message character counter
 - Docker-based deployment
 
 ## Tech stack
@@ -45,6 +71,7 @@ The project is currently under active development.
 - WebSockets
 - SQLite
 - aiosqlite
+- Argon2
 - Docker / Docker Compose
 - Vanilla JavaScript
 - CSS
@@ -65,13 +92,15 @@ chatten/
 │   └── style.css
 ├── templates/
 │   └── index.html
+├── tests/
 ├── .env.example
 ├── .gitignore
 ├── .dockerignore
 ├── Dockerfile
 ├── compose.yml
 ├── requirements.txt
-└── README.md
+├── README.md
+└── CHANGELOG.md
 ```
 
 ## Running with Docker
@@ -141,8 +170,8 @@ Current protections include:
 
 - Message rate limiting
 - Duplicate-message detection
-- Reserved usernames
-- Basic username validation
+- Reserved usernames and aliases
+- Basic username and alias validation
 - Per-user ignore/block functionality
 
 Planned or under consideration:
@@ -153,6 +182,22 @@ Planned or under consideration:
 - Room-level slow mode
 - Cloudflare Turnstile where appropriate
 - Reporting and moderation tools
+
+## Account system status
+
+The account system is functional but still under development.
+
+Current account functionality includes:
+
+- Registration
+- Login
+- Logout
+- Persistent sessions
+- Public aliases
+- Account-specific username colors
+- User, moderator and administrator roles
+
+Known unfinished areas include parts of the logout/session transition and the future Profile interface. Account and moderation behaviour may change as development continues.
 
 ## Design principles
 
@@ -167,7 +212,7 @@ Chatten aims to remain:
 
 ## Status
 
-Early development. Features, interfaces and moderation behaviour may change substantially.
+Early development. Features, interfaces, account functionality and moderation behaviour may change substantially.
 
 ## License
 

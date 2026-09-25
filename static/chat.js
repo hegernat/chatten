@@ -27,6 +27,331 @@ const userlistToggle = document.getElementById("userlist-toggle");
 const onlineUsersPanel = document.getElementById("online-users");
 const chatContent = document.querySelector(".chat-content");
 
+const registerLoginInput = document.getElementById("register-login-name");
+const registerLoginStatus = document.getElementById("register-login-status");
+
+const registerAliasInput = document.getElementById("register-alias");
+const registerAliasStatus = document.getElementById("register-alias-status");
+const registerPasswordInput = document.getElementById("register-password");
+const registerPasswordConfirmInput = document.getElementById("register-password-confirm");
+const registerPasswordStatus = document.getElementById("register-password-status");
+const registerPasswordConfirmStatus = document.getElementById("register-password-confirm-status");
+const registerError = document.getElementById("register-error");
+const registerSubmit = document.getElementById("register-submit");
+const registerConfirmPanel = document.getElementById("register-confirm-panel");
+const registerConfirmCancel = document.getElementById("register-confirm-cancel");
+const registerConfirmSubmit = document.getElementById("register-confirm-submit");
+
+let loginCheckTimer = null;
+let aliasCheckTimer = null;
+let registrationConfirmed = false;
+
+function setAvailabilityStatus(element, state, text) {
+    element.textContent = text;
+    element.classList.remove(
+        "auth-status-available",
+        "auth-status-unavailable",
+        "auth-status-error"
+    );
+
+    if (state === "available") {
+        element.classList.add("auth-status-available");
+    } else if (state === "unavailable") {
+        element.classList.add("auth-status-unavailable");
+    } else if (state === "error") {
+        element.classList.add("auth-status-error");
+    }
+}
+
+function updatePasswordStatus() {
+    const password = registerPasswordInput.value;
+
+    if (!password) {
+        setAvailabilityStatus(registerPasswordStatus, null, "");
+        return;
+    }
+
+    if (password.length < 8) {
+        setAvailabilityStatus(
+            registerPasswordStatus,
+            "unavailable",
+            "✕ Minst 8 tecken krävs."
+        );
+        return;
+    }
+
+    if (password.length > 128) {
+        setAvailabilityStatus(
+            registerPasswordStatus,
+            "unavailable",
+            "✕ Max 128 tecken."
+        );
+        return;
+    }
+
+    setAvailabilityStatus(
+        registerPasswordStatus,
+        "available",
+        "✓ Lösenordet uppfyller kraven."
+    );
+}
+
+function updatePasswordConfirmStatus() {
+    const password = registerPasswordInput.value;
+    const confirmation = registerPasswordConfirmInput.value;
+
+    if (!confirmation) {
+        setAvailabilityStatus(registerPasswordConfirmStatus, null, "");
+        return;
+    }
+
+    if (password === confirmation) {
+        setAvailabilityStatus(
+            registerPasswordConfirmStatus,
+            "available",
+            "✓ Lösenorden matchar."
+        );
+    } else {
+        setAvailabilityStatus(
+            registerPasswordConfirmStatus,
+            "unavailable",
+            "✕ Lösenorden matchar inte."
+        );
+    }
+}
+
+document.querySelectorAll(".password-toggle").forEach((button) => {
+    button.addEventListener("click", () => {
+        const input = document.getElementById(button.dataset.target);
+
+        if (input.type === "password") {
+            input.type = "text";
+            button.textContent = "Dölj";
+        } else {
+            input.type = "password";
+            button.textContent = "Visa";
+        }
+    });
+});
+
+function checkLoginNameAvailability() {
+    clearTimeout(loginCheckTimer);
+
+    const loginName = registerLoginInput.value.trim().toLowerCase();
+
+    if (!loginName) {
+        setAvailabilityStatus(registerLoginStatus, null, "");
+        return;
+    }
+
+    loginCheckTimer = setTimeout(async () => {
+        try {
+            const response = await fetch("/api/check-login-name", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    login_name: loginName
+                })
+            });
+
+            const result = await response.json();
+
+            if (!result.ok) {
+                setAvailabilityStatus(
+                    registerLoginStatus,
+                    "error",
+                    result.error
+                );
+                return;
+            }
+
+            if (result.available) {
+                setAvailabilityStatus(
+                    registerLoginStatus,
+                    "available",
+                    "✓ Tillgängligt"
+                );
+            } else {
+                setAvailabilityStatus(
+                    registerLoginStatus,
+                    "unavailable",
+                    "✕ Upptaget"
+                );
+            }
+        } catch {
+            setAvailabilityStatus(
+                registerLoginStatus,
+                "error",
+                "Kunde inte kontrollera tillgänglighet."
+            );
+        }
+    }, 300);
+}
+
+function checkAliasAvailability() {
+    clearTimeout(aliasCheckTimer);
+
+    const alias = registerAliasInput.value.trim();
+
+    if (!alias) {
+        setAvailabilityStatus(registerAliasStatus, null, "");
+        return;
+    }
+
+    aliasCheckTimer = setTimeout(async () => {
+        try {
+            const response = await fetch("/api/check-alias", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    alias: alias
+                })
+            });
+
+            const result = await response.json();
+
+            if (!result.ok) {
+                setAvailabilityStatus(
+                    registerAliasStatus,
+                    "error",
+                    result.error
+                );
+                return;
+            }
+
+            if (result.available) {
+                setAvailabilityStatus(
+                    registerAliasStatus,
+                    "available",
+                    "✓ Tillgängligt"
+                );
+            } else {
+                setAvailabilityStatus(
+                    registerAliasStatus,
+                    "unavailable",
+                    "✕ Upptaget"
+                );
+            }
+        } catch {
+            setAvailabilityStatus(
+                registerAliasStatus,
+                "error",
+                "Kunde inte kontrollera tillgänglighet."
+            );
+        }
+    }, 300);
+}
+
+registerSubmit.addEventListener("click", async () => {
+    registerError.textContent = "";
+
+    const loginName = registerLoginInput.value.trim().toLowerCase();
+    const alias = registerAliasInput.value.trim();
+    const password = registerPasswordInput.value;
+    const passwordConfirm = registerPasswordConfirmInput.value;
+
+    if (!loginName || !alias || !password || !passwordConfirm) {
+        registerError.textContent = "Fyll i alla fält.";
+        return;
+    }
+
+    if (password !== passwordConfirm) {
+        registerError.textContent = "Lösenorden matchar inte.";
+        return;
+    }
+
+    if (!registrationConfirmed) {
+        registerConfirmPanel.classList.remove("hidden");
+        return;
+    }
+
+    registerSubmit.disabled = true;
+
+    try {
+        const response = await fetch("/api/register", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                login_name: loginName,
+                alias: alias,
+                password: password,
+                password_confirm: passwordConfirm
+            })
+        });
+
+        const result = await response.json();
+
+        if (!result.ok) {
+            registerError.textContent = result.error;
+            return;
+        }
+
+        registerError.textContent = "";
+        registrationConfirmed = false;
+        showLoginForm();
+
+        const loginNameInput = document.getElementById("login-name");
+        loginNameInput.value = loginName;
+        document.getElementById("login-password").focus();
+
+    } catch {
+        registerError.textContent =
+            "Kunde inte registrera kontot. Försök igen.";
+    } finally {
+        registerSubmit.disabled = false;
+    }
+});
+
+registerConfirmCancel.addEventListener("click", () => {
+    registrationConfirmed = false;
+    registerConfirmPanel.classList.add("hidden");
+});
+
+registerConfirmSubmit.addEventListener("click", () => {
+    registrationConfirmed = true;
+    registerConfirmPanel.classList.add("hidden");
+    registerSubmit.click();
+});
+
+registerLoginInput.addEventListener(
+    "input",
+    () => {
+        registerError.textContent = "";
+        checkLoginNameAvailability();
+    }
+);
+
+registerAliasInput.addEventListener(
+    "input",
+    () => {
+        registerError.textContent = "";
+        checkAliasAvailability();
+    }
+);
+
+registerPasswordInput.addEventListener(
+    "input",
+    () => {
+        registerError.textContent = "";
+        updatePasswordStatus();
+        updatePasswordConfirmStatus();
+    }
+);
+
+registerPasswordConfirmInput.addEventListener(
+    "input",
+    () => {
+        registerError.textContent = "";
+        updatePasswordConfirmStatus();
+    }
+);
+
 function openMenu() {
     menuOverlay.hidden = false;
     menuDrawer.classList.add("open");
@@ -47,6 +372,165 @@ function closeMenu() {
         }
     }, 160);
 }
+
+const menuProfile = document.getElementById("menu-profile");
+const menuLogout = document.getElementById("menu-logout");
+
+let isLoggedIn = false;
+
+const authPanel = document.getElementById("auth-panel");
+
+const loginTab = document.getElementById("auth-login-tab");
+const registerTab = document.getElementById("auth-register-tab");
+
+const loginForm = document.getElementById("login-form");
+const registerForm = document.getElementById("register-form");
+
+const loginPasswordInput = document.getElementById("login-password");
+const loginError = document.getElementById("login-error");
+const loginSubmit = document.getElementById("login-submit");
+
+const loginNameInput = document.getElementById("login-name");
+
+[loginNameInput, loginPasswordInput].forEach((input) => {
+    input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            loginSubmit.click();
+        }
+    });
+});
+
+function openAuthPanel(mode = "login") {
+    authPanel.classList.remove("hidden");
+
+    if (mode === "register") {
+        showRegisterForm();
+    } else {
+        showLoginForm();
+    }
+}
+
+function closeAuthPanel() {
+    authPanel.classList.add("hidden");
+}
+
+function updateAuthMenu() {
+    menuLogout.classList.toggle("hidden", !isLoggedIn);
+}
+
+menuLogout.addEventListener("click", async () => {
+    try {
+        const response = await fetch("/api/logout", {
+            method: "POST"
+        });
+
+        const result = await response.json();
+
+        if (!result.ok) {
+            return;
+        }
+
+        isLoggedIn = false;
+        updateAuthMenu();
+
+        currentSessionId = null;
+        currentUsername = null;
+        currentUserColor = null;
+
+        closeMenu();
+
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            websocket.close();
+        }
+    } catch {
+        // Behåll inloggat läge om logout-begäran misslyckas.
+    }
+});
+
+document.getElementById("auth-close").addEventListener("click", closeAuthPanel);
+
+function showLoginForm() {
+    loginTab.classList.add("active");
+    registerTab.classList.remove("active");
+
+    loginForm.classList.remove("hidden");
+    registerForm.classList.add("hidden");
+}
+
+function showRegisterForm() {
+    registerTab.classList.add("active");
+    loginTab.classList.remove("active");
+
+    registerForm.classList.remove("hidden");
+    loginForm.classList.add("hidden");
+}
+
+loginSubmit.addEventListener("click", async () => {
+    loginError.textContent = "";
+
+    const loginName = document.getElementById("login-name").value
+        .trim()
+        .toLowerCase();
+
+    const password = loginPasswordInput.value;
+
+    if (!loginName || !password) {
+        loginError.textContent = "Fyll i Login-ID och lösenord.";
+        return;
+    }
+
+    loginSubmit.disabled = true;
+
+    try {
+        const response = await fetch("/api/login", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                login_name: loginName,
+                password: password
+            })
+        });
+
+        const result = await response.json();
+
+        if (!result.ok) {
+            loginError.textContent = result.error;
+            return;
+        }
+        
+        isLoggedIn = true;
+        updateAuthMenu();
+
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            websocket.close();
+        }
+
+        closeAuthPanel();
+
+    } catch {
+        loginError.textContent =
+            "Kunde inte logga in. Försök igen.";
+    } finally {
+        loginSubmit.disabled = false;
+    }
+});
+
+loginTab.addEventListener("click", () => {
+    showLoginForm();
+});
+
+registerTab.addEventListener("click", () => {
+    showRegisterForm();
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !authPanel.classList.contains("hidden")) {
+        closeAuthPanel();
+    }
+});
 
 function toggleUserlist() {
     const hidden = onlineUsersPanel.classList.toggle("collapsed");
@@ -77,6 +561,17 @@ menuToggle.addEventListener("click", function () {
 menuClose.addEventListener("click", closeMenu);
 menuOverlay.addEventListener("click", closeMenu);
 
+document.querySelectorAll("[data-menu-action]").forEach((button) => {
+    button.addEventListener("click", function () {
+        const action = button.dataset.menuAction;
+
+        if (action === "profile") {
+            closeMenu();
+            openAuthPanel("login");
+        }
+    });
+});
+
 document.addEventListener("keydown", function (event) {
     if (event.key === "Escape" && menuDrawer.classList.contains("open")) {
         closeMenu();
@@ -84,7 +579,15 @@ document.addEventListener("keydown", function (event) {
 });
 
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-const websocket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+let websocket = null;
+
+function connectWebSocket() {
+    websocket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+    websocket.onopen = websocketOnOpen;
+    websocket.onmessage = websocketOnMessage;
+    websocket.onclose = websocketOnClose;
+}
 const soundToggle = document.getElementById("sound-toggle");
 const soundIcon = document.getElementById("sound-icon");
 
@@ -103,6 +606,38 @@ let roomChangeInProgress = false;
 let currentSessionId = null;
 let currentUsername = null;
 let currentUserColor = null;
+let activityTimer = null;
+
+function reportActivity() {
+    if (websocket.readyState !== WebSocket.OPEN) {
+        return;
+    }
+
+    if (activityTimer) {
+        return;
+    }
+
+    websocket.send(JSON.stringify({
+        type: "activity"
+    }));
+
+    activityTimer = setTimeout(() => {
+        activityTimer = null;
+    }, 15000);
+}
+
+[
+    "mousemove",
+    "mousedown",
+    "keydown",
+    "scroll",
+    "touchstart",
+    "click"
+].forEach(eventName => {
+    document.addEventListener(eventName, reportActivity, {
+        passive: true
+    });
+});
 
 const IGNORED_USERS_KEY = "chatten_ignored_users";
 
@@ -289,7 +824,7 @@ function updateOnlineUsers(users) {
         const userElement = document.createElement("div");
         userElement.className = "online-user";
         userElement.dataset.sessionId = user.session_id;
-        userElement.style.color = user.color;
+        userElement.style.color = user.idle ? "#e3a35c" : user.color;
 
         const name = document.createElement("span");
         name.className = "online-user-name";
@@ -372,7 +907,7 @@ function openUsernameEditor(userElement, user) {
     input.className = "username-edit";
     input.contentEditable = "true";
     input.setAttribute("role", "textbox");
-    input.setAttribute("aria-label", "Användarnamn");
+    input.setAttribute("aria-label", "Alias");
     input.spellcheck = false;
     input.textContent = user.username;
 
@@ -497,7 +1032,7 @@ function playMentionSound() {
     mentionSound.play().catch(() => {});
 }
 
-websocket.onopen = function () {
+function websocketOnOpen() {
     messages.innerHTML = "";
     input.focus();
 
@@ -511,7 +1046,7 @@ websocket.onopen = function () {
     }
 };
 
-websocket.onmessage = function (event) {
+function websocketOnMessage(event) {
     const data = JSON.parse(event.data);
 
     switch (data.type) {
@@ -565,7 +1100,11 @@ websocket.onmessage = function (event) {
             currentSessionId = data.session_id;
             currentUsername = data.username;
             currentUserColor = data.color;
-            break;
+
+            isLoggedIn = data.authenticated;
+            updateAuthMenu();
+
+        break;
 
         case "username_changed":
             if (data.session_id === currentSessionId) {
@@ -592,10 +1131,17 @@ websocket.onmessage = function (event) {
 };
 
 
-websocket.onclose = function () {
+function websocketOnClose() {
     console.log("WebSocket connection closed");
-};
 
+    if (document.visibilityState === "hidden") {
+        return;
+    }
+
+    connectWebSocket();
+}
+
+connectWebSocket();
 
 form.addEventListener("submit", function (event) {
     event.preventDefault();

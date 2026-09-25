@@ -75,6 +75,8 @@ body {
 
 .chat-header {
     height: 56px;
+    flex: 0 0 56px;
+    min-height: 56px;
     padding: 0 24px;
     overflow: hidden;
 
@@ -760,6 +762,9 @@ body {
     }
 
     .chat-header {
+        flex: 0 0 56px;
+        min-height: 56px;
+        height: 56px;
         padding: 0 16px;
         gap: 12px;
     }
@@ -792,9 +797,224 @@ body {
 
     .chat-content {
         --mobile-userlist-width: min(180px, 60vw);
+        flex: 1 1 auto;
+        min-height: 0;
     }
 
     .chat-content:has(.online-users:not(.collapsed)) .messages {
         padding-right: calc(var(--mobile-userlist-width) + 12px);
     }
+}
+
+/* ── Auth panel ───────────────────────────────────────────── */
+
+.auth-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.72);
+}
+
+.auth-panel.hidden {
+    display: none;
+}
+
+.auth-box {
+    width: min(420px, 100%);
+    padding: 28px;
+    background: #171717;
+    border: 1px solid #303030;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.auth-box {
+    width: min(420px, 100%);
+    padding: 28px;
+    background: #171717;
+    border: 1px solid #303030;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    position: relative;
+}
+
+.auth-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #777;
+    font: inherit;
+    font-size: 18px;
+    line-height: 24px;
+    cursor: pointer;
+}
+
+.auth-close:hover {
+    color: #d8d8d8;
+}
+
+.auth-box h2 {
+    margin: 0 0 24px;
+    font-size: 18px;
+    font-weight: normal;
+}
+
+.auth-box label {
+    display: block;
+    margin: 0 0 7px;
+    font-size: 13px;
+}
+
+.auth-box input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 11px;
+    margin: 0 0 5px;
+    border: 1px solid #353535;
+    border-radius: 0;
+    outline: none;
+    background: #101010;
+    color: #d8d8d8;
+    font: inherit;
+}
+
+.auth-box input:focus {
+    border-color: #666;
+}
+
+.password-field {
+    position: relative;
+}
+
+.password-field input {
+    padding-right: 58px;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    padding: 0 10px;
+    border: 0;
+    background: transparent;
+    color: #777;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.password-toggle:hover {
+    color: #d8d8d8;
+}
+
+.auth-status {
+    min-height: 18px;
+    margin-bottom: 14px;
+    font-size: 12px;
+}
+
+.auth-error {
+    min-height: 20px;
+    margin: 4px 0 14px;
+    color: #d86f6f;
+    font-size: 12px;
+}
+
+#register-submit {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #3d3d3d;
+    border-radius: 0;
+    background: #242424;
+    color: #d8d8d8;
+    font: inherit;
+    cursor: pointer;
+}
+
+#register-submit:hover {
+    background: #303030;
+}
+
+.auth-status-available {
+    color: #8fd694;
+}
+
+.auth-status-unavailable,
+.auth-status-error {
+    color: #d86f6f;
+}
+
+/* ── Auth tabs ────────────────────────────────────────────── */
+
+.auth-tabs {
+    display: flex;
+    margin: -28px -28px 24px;
+    border-bottom: 1px solid #303030;
+}
+
+.auth-tab {
+    flex: 1;
+    padding: 12px 10px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: #777;
+    font: inherit;
+    cursor: pointer;
+}
+
+.auth-tab:hover {
+    color: #b0b0b0;
+    background: #1d1d1d;
+}
+
+.auth-tab.active {
+    color: #d8d8d8;
+    border-bottom-color: #8fd694;
+}
+
+.auth-form.hidden {
+    display: none;
+}
+
+.auth-hint {
+    margin: 4px 0 6px;
+    color: #666;
+    font-size: 12px;
+}
+
+.auth-confirm-box p {
+    margin: 0 0 14px;
+    color: #aaa;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.auth-confirm-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 22px;
+}
+
+.auth-confirm-actions button {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #3d3d3d;
+    border-radius: 0;
+    background: #242424;
+    color: #d8d8d8;
+    font: inherit;
+    cursor: pointer;
+}
+
+.auth-confirm-actions button:hover {
+    background: #303030;
 }

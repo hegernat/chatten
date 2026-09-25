@@ -99,11 +99,21 @@
             <nav class="menu-nav" aria-label="Huvudmeny">
 
                 <button
+                    id="menu-profile"
                     class="menu-item"
                     type="button"
                     data-menu-action="profile"
                 >
                     Profil
+                </button>
+
+                <button
+                    id="menu-logout"
+                    class="menu-item hidden"
+                    type="button"
+                    data-menu-action="logout"
+                >
+                    Logga ut
                 </button>
 
                 <button
@@ -140,6 +150,190 @@
 
             </nav>
         </aside>
+
+        <div id="auth-panel" class="auth-panel hidden">
+            <div class="auth-box">
+
+                <button
+                    id="auth-close"
+                    class="auth-close"
+                    type="button"
+                    aria-label="Stäng"
+                >
+                    ×
+                </button>
+
+                <div class="auth-tabs">
+                    <button
+                        id="auth-login-tab"
+                        class="auth-tab active"
+                        type="button"
+                    >
+                        Logga in
+                    </button>
+
+                    <button
+                        id="auth-register-tab"
+                        class="auth-tab"
+                        type="button"
+                    >
+                        Registrera
+                    </button>
+                </div>
+
+                <div id="login-form" class="auth-form">
+
+                    <h2>Logga in</h2>
+
+                    <label for="login-name">Login-ID</label>
+                    <input
+                        id="login-name"
+                        type="text"
+                        maxlength="20"
+                        autocomplete="username"
+                        spellcheck="false"
+                    >
+
+                    <label for="login-password">Lösenord</label>
+                    <input
+                        id="login-password"
+                        type="password"
+                        maxlength="128"
+                        autocomplete="current-password"
+                    >
+
+                    <div id="login-error" class="auth-error"></div>
+
+                    <button
+                        id="login-submit"
+                        type="button"
+                    >
+                        Logga in
+                    </button>
+
+                </div>
+
+                <div id="register-form" class="auth-form hidden">
+
+                    <h2>Registrera konto</h2>
+
+                    <label for="register-login-name">Login-ID</label>
+                    <input
+                        id="register-login-name"
+                        type="text"
+                        minlength="4"
+                        maxlength="20"
+                        autocomplete="username"
+                        spellcheck="false"
+                    >
+
+                    <div
+                        id="register-login-status"
+                        class="auth-status"
+                    ></div>
+
+                    <label for="register-alias">Alias</label>
+                    <input
+                        id="register-alias"
+                        type="text"
+                        minlength="2"
+                        maxlength="20"
+                        autocomplete="nickname"
+                    >
+
+                    <div
+                        id="register-alias-status"
+                        class="auth-status"
+                    ></div>
+
+                    <label for="register-password">Lösenord</label>
+                    <div class="password-field">
+                        <input
+                            id="register-password"
+                            type="password"
+                            minlength="8"
+                            maxlength="128"
+                            autocomplete="new-password"
+                        >
+                        <button
+                            type="button"
+                            class="password-toggle"
+                            data-target="register-password"
+                        >
+                            Visa
+                        </button>
+                    </div>
+                    <div class="auth-hint">8–128 tecken. Alla vanliga tecken är tillåtna.</div>
+                    <div id="register-password-status" class="auth-status"></div>
+
+                    <label for="register-password-confirm">Bekräfta lösenord</label>
+                    <div class="password-field">
+                        <input
+                            id="register-password-confirm"
+                            type="password"
+                            minlength="8"
+                            maxlength="128"
+                            autocomplete="new-password"
+                        >
+                        <button
+                            type="button"
+                            class="password-toggle"
+                            data-target="register-password-confirm"
+                        >
+                            Visa
+                        </button>
+                    </div>
+                    <div id="register-password-confirm-status" class="auth-status"></div>
+
+                    <div
+                        id="register-error"
+                        class="auth-error"
+                    ></div>
+
+                    <button
+                        id="register-submit"
+                        type="button"
+                    >
+                        Registrera
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+
+        <div id="register-confirm-panel" class="auth-panel hidden">
+            <div class="auth-box auth-confirm-box">
+
+                <h2>Registrera konto?</h2>
+
+                <p>
+                    Det finns ingen funktion för att återställa lösenord eller konto.
+                    Om du glömmer ditt lösenord kan kontot inte återställas automatiskt.
+                </p>
+
+                <p>
+                    Är du säker på att du vill skapa kontot?
+                </p>
+
+                <div class="auth-confirm-actions">
+                    <button
+                        id="register-confirm-cancel"
+                        type="button"
+                    >
+                        Avbryt
+                    </button>
+
+                    <button
+                        id="register-confirm-submit"
+                        type="button"
+                    >
+                        Registrera
+                    </button>
+                </div>
+
+            </div>
+        </div>
 
         <div class="chat-content">
             <section id="messages" class="messages"></section>
